@@ -40,7 +40,7 @@
 
 .toggle-button {
   position: absolute;
-  top: .75rem;
+  top: 1.5rem;
   right: 1rem;
   display: none;
   flex-direction: column;
@@ -92,8 +92,19 @@
   .navbar-links.active {
     display: flex;
   }
+}
 
-  .site-title {
-    /* margin-bottom: 0; */
-  }
+#dark {
+  width: 12px;
+  fill: var(--secondary-color);
+  cursor: pointer;
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--pre-primary-color);
+  padding: 8px 11px;
+  border-radius: 20px;
+  box-shadow: 0 2px 2px hsla(var(--hue), 50%, 10%, .3), 0 4px 4px hsla(var(--hue), 50%, 10%, .15);
+  
 }

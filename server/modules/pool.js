@@ -1,8 +1,6 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
 const pg = require("pg");
 let pool;
-if (process.env.NEON_URL) {
+if (process.env.ENVIRONMENT === 'prod') {
   pool = new pg.Pool({
     connectionString: process.env.NEON_URL,
     ssl: {
@@ -14,7 +12,7 @@ else {
   pool = new pg.Pool({
     host: "localhost",
     port: 5432,
-    database: "toastmasters",
+    database: "evaluation_forum",
   });
 }
 module.exports = pool;

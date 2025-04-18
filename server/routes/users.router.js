@@ -1,10 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const pool = require("../modules/pool.js");
-
-const { scrypt, randomBytes, timingSafeEqual } = require("node:crypto");
-
-const DOMAIN = 'https://localhost:5173';
+const { clearSessions, SESSIONS, validateUser } = require('../modules/sessionValidator.js')
+const { scrypt, randomInt, randomBytes, timingSafeEqual } = require("node:crypto");
 
 // scrypt values per
 const COST = 16384;
@@ -13,40 +11,88 @@ const PARALLELIZATION = 5;
 
 router.post("/register", (req, res) => {
 
-  const { firstName, lastName, userName, email, phone, password } = req.body;
+  const { firstName, lastName, username, email, password } = req.body;
 
+  // ToDo: could error if not enough entropy.
   const salt = randomBytes(128);
 
   const normalizedPassword = password.normalize('NFC');
   let password_buffer = Buffer.from(normalizedPassword, 'utf8');
 
-  scrypt(password_buffer, salt, 128, { N: COST, r: BLOCK_SIZE, p: PARALLELIZATION }, (err, hashed_salted_password) => {
+  scrypt(password_buffer, salt, 128, { N: COST, r: BLOCK_SIZE, p: PARALLELIZATION }, (err, hashedSaltedPassword) => {
     if (err) throw err;
+
+    // ToDo: could error, handle with callback.
+    let verificationCode = randomInt(1000000);
+    verificationCode = verificationCode.toString();
+    while (verificationCode.length < 6) {
+      verificationCode = '0' + verificationCode;
+    }
 
     const query = `
       INSERT INTO users
-        (first_name, last_name, user_name, email, phone, hashed_salted_password, salt)
+        (first_name, last_name, username, email, hashed_salted_password, salt, verification_code)
       VALUES
         ($1, $2, $3, $4, $5, $6, $7)
       RETURNING
-        id;
+        id, "first_name" as "firstName", "last_name" as "lastName", "username", email, photo_url as "photoUrl";
     `;
 
     const queryValues = [
       firstName,
       lastName,
-      userName,
+      username,
       email,
-      phone,
-      hashed_salted_password,
-      salt
+      hashedSaltedPassword,
+      salt,
+      verificationCode
     ];
 
     pool
       .query(query, queryValues)
       .then((dbRes) => {
-        res.cookie('__Secure-cookieName', 'cookieValue', { expires: new Date(Date.now() + 900000), httpOnly: true, path: '/', sameSite: "none", secure: true });
-        res.status(201).json({ message: `Registration Successful!`, id: dbRes.rows[0].id });
+
+        const sgMail = require('@sendgrid/mail')
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY)
+        const msg = {
+          to: process.env.ENVIRONMENT = 'dev' ? 'evaluationforum@gmail.com' : email,
+          from: 'donotreply@evaluation.forum',
+          subject: 'Evaluation Forum registration verification code',
+          text: `\n\nYour registration verification code is: '${verificationCode}'.\n\nPlease do not share this code with anyone.\nWe will never ask you for this code over the phone or text message.`,
+          html: `
+                <div>
+                  <p>Your registration verification code is: <strong><em>${verificationCode}</em></strong>.<p>
+                  <p>Please do not share this code with anyone.<p>
+                  <p>We will never ask you for this code over the phone or text message.<p>
+                </div>
+                  `,
+        }
+        sgMail
+          .send(msg)
+          .then(() => {
+            console.log(`\n\nEmail account validation message sent to: ${email}\n`);
+          })
+          .catch((error) => {
+            console.error(error);
+          })
+
+
+        let body = {
+          id: dbRes.rows[0].id,
+          firstName: dbRes.rows[0].firstName,
+          lastName: dbRes.rows[0].lastName,
+          username: dbRes.rows[0].username,
+          email: dbRes.rows[0].email,
+          photoUrl: dbRes.rows[0].photoUrl,
+          message: "Registration Successful!"
+        };
+
+        // Cache session
+        // ToDo: could error if not enough entropy.
+        const session_id = randomBytes(32).toString('hex');
+        SESSIONS.set(session_id, dbRes.rows[0].id);
+        res.cookie('__Secure-id', session_id, { expires: 0, httpOnly: true, path: '/', sameSite: true, secure: true });
+        res.status(201).json(body);
       })
       .catch((dbErr) => {
         console.error(`Error registering new user`, dbErr);
@@ -54,6 +100,10 @@ router.post("/register", (req, res) => {
           res
             .status(400)
             .json({ message: `Error registering ${email}.  Please try a different email address.` });
+        } else if (dbErr.code === "23505" && dbErr.constraint === "users_username_key") {
+          res
+            .status(400)
+            .json({ message: `Error registering ${username}.  Please try a different username.` });
         } else {
           res.status(500).json({ message: "Registration Error" });
         }
@@ -61,25 +111,58 @@ router.post("/register", (req, res) => {
   });
 });
 
-router.post("/login", (req, res) => {
+router.post("/register/verify", validateUser, (req, res) => {
 
-  const { email, password } = req.body;
+  const id = req.user.id;
+  const { attemptedCode } = req.body;
 
   const query = `
-        SELECT id, "first_name" as "firstName", "last_name" as "lastName", "user_name" as "userName", email, phone, salt, hashed_salted_password FROM
-            users
-        WHERE
-            email = $1;
-    `;
+    SELECT "verification_code" as "verificationCode", "last_name" as "lastName", "username", "email", "phone", "member_number" as "memberNumber", "photo_url" as "photoUrl", "bio" FROM
+        users
+    WHERE
+        id = $1;
+  `;
 
-  const queryValues = [email];
+  const queryValues = [id];
 
   pool
     .query(query, queryValues)
     .then((dbRes) => {
-      let user = dbRes.rows[0];
+      let userDetails = dbRes.rows[0];
+      userDetails.message = "Successfully fetched user data";
+      res.status(201).json(userDetails);
+      return;
+    })
+    .catch((dbErr) => {
+      res.status(500).json({ message: 'Error fetching user information.' });
+      return;
+    });
 
-      if (user) {
+
+
+});
+
+router.post("/login", (req, res) => {
+
+  const { username, password } = req.body;
+
+  const query = `
+        SELECT id, "first_name" as "firstName", "last_name" as "lastName", "username", photo_url as "photoUrl", salt, hashed_salted_password FROM
+            users
+        WHERE
+            username = $1;
+    `;
+
+  const queryValues = [username];
+
+  pool
+    .query(query, queryValues)
+    .then((dbRes) => {
+
+      if (dbRes.rows[0]) {
+
+        let user = dbRes.rows[0];
+
         const stored_hashed_salted_password = user.hashed_salted_password;
         const salt = user.salt;
 
@@ -87,7 +170,10 @@ router.post("/login", (req, res) => {
         let password_buffer = Buffer.from(normalizedPassword, 'utf8')
 
         scrypt(password_buffer, salt, 128, { N: COST, r: BLOCK_SIZE, p: PARALLELIZATION }, (err, attempted_hashed_salted_password) => {
-          if (err) throw err;
+          if (err) {
+
+            throw err;
+          };
 
           if (timingSafeEqual(stored_hashed_salted_password, attempted_hashed_salted_password)) {
 
@@ -95,40 +181,62 @@ router.post("/login", (req, res) => {
               id: user.id,
               firstName: user.firstName,
               lastName: user.lastName,
-              userName: user.userName,
-              email: user.email,
-              phone: user.phone,
-              message: "Success!"
+              username: user.username,
+              photoUrl: user.photoUrl,
+              message: "Login Successful!"
             };
 
-            res.cookie('__Secure-cookieName', 'cookieValue', { expires: new Date(Date.now() + 900000), httpOnly: true, path: '/', sameSite: "none", secure: true });
+            // ToDo: could error if not enough entropy.
+            const session_id = randomBytes(32).toString('hex');
+            clearSessions(user.id);
+            SESSIONS.set(session_id, dbRes.rows[0].id);
+            res.cookie('__Secure-id', session_id, { expires: 0, httpOnly: true, path: '/', sameSite: true, secure: true });
 
-            res.send(body);
+            res.status(201).json(body);
+            return;
+
           } else {
+
             let body = {
               message: "That combination of email and password does not exist",
             };
+
             res.status(403).json(body);
+            return;
           }
         });
       } else {
         let body = {
           message: "That combination of email and password does not exist",
         };
-        res.sendStatus(403).json(body);
+
+        res.status(403).json(body);
+        return;
       }
     })
     .catch((dbErr) => {
       console.error(`Error logging user in`, dbErr);
+
       res.status(500).json({ message: `Error logging you in.` });
+      return;
     });
 });
 
-router.put("/reset/:id", (req, res) => {
+router.post("/logout", validateUser, (req, res) => {
 
-  const id = req.params.id;
+  res.clearCookie('__Secure-id', { httpOnly: true, path: '/', sameSite: true, secure: true });
+  res.status(200).json({ message: 'Logout Successful' });
 
-  const { email, currentPassword, newPassword } = req.body;
+  clearSessions(req.user.id);
+  return;
+});
+
+// ToDo: Make a front end and test this
+router.put("/password/:id", validateUser, (req, res) => {
+
+  const id = req.user.id;
+
+  const { username, currentPassword, newPassword } = req.body;
 
   const query = `
         SELECT * FROM
@@ -136,10 +244,10 @@ router.put("/reset/:id", (req, res) => {
         WHERE
           id = $1
         AND
-          email = $2;
+          username = $2;
     `;
 
-  const queryValues = [id, email];
+  const queryValues = [id, username];
 
   pool
     .query(query, queryValues)
@@ -177,7 +285,7 @@ router.put("/reset/:id", (req, res) => {
                 WHERE
                   id = $3
                 AND
-                  email = $4
+                  username = $4
                 RETURNING
                   id;
               `;
@@ -186,13 +294,14 @@ router.put("/reset/:id", (req, res) => {
                 new_hashed_salted_password,
                 newSalt,
                 id,
-                email
+                username
               ];
 
               pool
                 .query(query, queryValues)
                 .then((dbRes) => {
                   res.status(201).json({ message: `Password Update Successful!`, id: dbRes.rows[0].id });
+                  return;
                 })
                 .catch((dbErr) => {
                   console.error(`Error updating password:`, dbErr);
@@ -200,36 +309,68 @@ router.put("/reset/:id", (req, res) => {
                     res
                       .status(400)
                       .json({ message: `Error updating password, please try again.` });
+                    return;
                   } else {
                     res.status(500).json({ message: "Password Update Error" });
+                    return;
                   }
                 });
             });
           } else {
             let body = {
-              message: "That combination of email and password does not exist",
+              message: "That combination of username and password does not exist",
             };
             res.status(403).json(body);
+            return;
           }
         });
       } else {
         let body = {
-          message: "That combination of email and password does not exist",
+          message: "That combination of username and password does not exist",
         };
         res.status(403).json(body);
+        return;
       }
     })
     .catch((dbErr) => {
       console.error(`Error updating password`, dbErr);
       res.status(500).json({ message: `Error updating your password.` });
+      return;
+    });
+});
+
+router.get("/", validateUser, (req, res) => {
+
+  const id = req.user.id;
+
+  const query = `
+    SELECT "first_name" as "firstName", "last_name" as "lastName", "username", "email", "phone", "member_number" as "memberNumber", "photo_url" as "photoUrl", "bio" FROM
+        users
+    WHERE
+        id = $1;
+  `;
+
+  const queryValues = [id];
+
+  pool
+    .query(query, queryValues)
+    .then((dbRes) => {
+      let userDetails = dbRes.rows[0];
+      userDetails.message = "Successfully fetched user data";
+      res.status(201).json(userDetails);
+      return;
+    })
+    .catch((dbErr) => {
+      res.status(500).json({ message: 'Error fetching user information.' });
+      return;
     });
 });
 
 router.delete("/:id", (req, res) => {
 
   const id = req.params.id;
-  console.log('delete id:', id);
-  res.sendStatus(204);
+  res.sendStatus(200);
+  return;
 
 });
 

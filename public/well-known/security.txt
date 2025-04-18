@@ -1,0 +1,5 @@
+Contact: https://evaluation.forum/security/security-contact.html
+Expires: 2026-12-31T23:59:00.000Z
+Preferred-Languages: en
+Canonical: https://evaluation.forum/.well-known/security.txt
+Policy: https://evaluation.forum/security/disclosure-policy.html

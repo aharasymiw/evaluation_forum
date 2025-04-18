@@ -1,0 +1,46 @@
+Auth
+  Session/Cookie Settings
+    Delete cookie on window close
+    Refactor
+    Comments
+  Email varify registration
+  Server Side input validation.
+  Format login page.
+  Update password
+
+Nav Bar
+  Speeches
+  Evaluations
+  Register/Login/Out
+  Profile
+
+Speeches
+  Server Side input validation.
+
+Evaluations
+  Server Side input validation.
+
+Profile
+  Photo Upload
+  Bio
+  Phone Number
+  Club
+    Officer
+  Server Side input validation.
+
+Session storage - Evals & Speeches
+
+Error Handling & messaging
+Logs
+Rate Limiting
+2FA
+Oauth
+Passkeys
+Multi Club Support
+"Keep me logged in"
+  Use this package to remove expired sessions:
+  https://www.npmjs.com/package/node-schedule
+  ultimately, Redis session storage
+  or just use JWTs as cookies, so it's all stored on the client.
+Darkmode
+Pepper

@@ -1,21 +1,21 @@
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 
 const Results = () => {
 
-  // const [addLabel, setAddLabel] = useState('');
-  // const [addValue, setAddValue] = useState('');
+  const [addLabel, setAddLabel] = useState('');
+  const [addValue, setAddValue] = useState('');
 
-  // const [retrieveLabel, setRetrieveLabel] = useState('');
-  // const [retrieveValue, setRetrieveValue] = useState('');
+  const [retrieveLabel, setRetrieveLabel] = useState('');
+  const [retrieveValue, setRetrieveValue] = useState('');
 
-  // const [deleteLabel, setDeleteLabel] = useState('');
-  // const [isDeleteSuccessful, setIsDeleteSuccessful] = useState(false);
+  const [deleteLabel, setDeleteLabel] = useState('');
+  const [isDeleteSuccessful, setIsDeleteSuccessful] = useState(false);
 
-  // const [deleteConfirmLabel, setDeleteConfirmLabel] = useState('');
-  // const [isDeleteConfirm, setIsDeleteConfirm] = useState('');
+  const [deleteConfirmLabel, setDeleteConfirmLabel] = useState('');
+  const [isDeleteConfirm, setIsDeleteConfirm] = useState('');
 
 
-  function addToStorage(key: string, value: string): void {
+  function addToStorage(key, value) {
 
     try {
 
@@ -34,7 +34,7 @@ const Results = () => {
 
   }
 
-  function retrieveFromStorage(key: string): string | null {
+  function retrieveFromStorage(key) {
 
     try {
       let storedValue = localStorage.getItem(key);
@@ -49,7 +49,7 @@ const Results = () => {
 
 
 
-  function removeFromStorage(evt: FormEvent): void {
+  function removeFromStorage(evt) {
 
     evt.preventDefault();
 
@@ -73,7 +73,7 @@ const Results = () => {
     <>
       <h3>Results</h3>
 
-      {/* <section>
+      <section>
 
         <h4>Add to Storage</h4>
 
@@ -91,9 +91,9 @@ const Results = () => {
           <button type='submit'>Submit</button>
         </form>
 
-      </section> */}
+      </section>
 
-      {/* <section>
+      <section>
 
         <h4>Retrieve from Storage</h4>
 
@@ -110,9 +110,9 @@ const Results = () => {
           {retrieveValue ? <p>Label: {retrieveLabel} has Value: {retrieveValue}</p> : <p></p>}
         </div>
 
-      </section > */}
+      </section >
 
-      {/* <section>
+      <section>
 
         <h4>Delete from Storage</h4>
 
@@ -129,7 +129,7 @@ const Results = () => {
           {isDeleteSuccessful ? <p>Label: {deleteLabel} has been deleted!</p> : <p>Error deleting value with Label: {deleteLabel}</p>}
         </div>
 
-      </section> */}
+      </section>
 
     </>
   );
