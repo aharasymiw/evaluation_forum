@@ -32,6 +32,7 @@ const Login = () => {
           username: response.data.username,
           email: response.data.email,
           photoUrl: response.data.photoUrl,
+          isVerified: response.data.isVerified
         });
 
         setUsername('');

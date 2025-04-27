@@ -23,6 +23,7 @@ const VerifyEmail = () => {
       .then(response => {
         console.log('New user verification successful.', response.data);
 
+        setUser({...user, isVerified: true});
         setAttemptedCode('');
 
         navigate("/");

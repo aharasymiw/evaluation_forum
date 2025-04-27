@@ -19,18 +19,25 @@ const NavBar = () => {
   function logout() {
     axios.post('/api/users/logout')
       .then(response => {
+
+        console.log('Logout response', response.data);
+
         setUser({
           id: null,
           firstName: null,
           lastName: null,
           username: null,
+          email: null,
           photoUrl: null,
+          isVerified: false
         });
 
-        navigate("/");
+        console.log('Successfully logged out', response.data.message);
+
+        // navigate("/");
       })
       .catch(error => {
-        console.log('Error logging out', error.message);
+        console.log('Error logging out', error);
         alert("Error logging out.  Please try again.  If the problem persists, please contact support.")
       })
   }
@@ -40,20 +47,26 @@ const NavBar = () => {
   }
 
   function OptionsList() {
-    if (user.username) {
+    if (user.isVerified) {
       return (
         <ul>
           <CustomLink to="upload" onClick={() => setMenuIsActive(false)}>Upload</CustomLink>
           <CustomLink to="results" onClick={() => setMenuIsActive(false)}>Results</CustomLink>
           <CustomLink to="profile" onClick={() => setMenuIsActive(false)}>Profile</CustomLink>
-          <li onClick={() => { setMenuIsActive(false); logout(); }}><a className="link" href="/">Logout</a></li>
+          <CustomLink to="login" onClick={() => { setMenuIsActive(false); logout(); }}>Logout</CustomLink>
+        </ul>
+      );
+    } else if (!user.id) {
+      return (
+        <ul>
+          <CustomLink to="register" onClick={() => setMenuIsActive(false)}>Register</CustomLink>
+          <CustomLink to="login" onClick={() => setMenuIsActive(false)}>Login</CustomLink>
         </ul>
       );
     } else {
       return (
         <ul>
-          <CustomLink to="register" onClick={() => setMenuIsActive(false)}>Register</CustomLink>
-          <CustomLink to="login" onClick={() => setMenuIsActive(false)}>Login</CustomLink>
+          <CustomLink to="verify-email" onClick={() => setMenuIsActive(false)}>Verify Email</CustomLink>
         </ul>
       );
     }

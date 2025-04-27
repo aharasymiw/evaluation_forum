@@ -1,6 +1,7 @@
 import { createContext, useEffect, useState } from "react";
 // import { Outlet } from "react-router-dom";
 import { BrowserRouter, Routes, Route } from "react-router";
+
 import axios from 'axios';
 
 import './App.css'
@@ -27,6 +28,7 @@ function App() {
     username: null,
     email: null,
     photoUrl: null,
+    isVerified: false
   });
 
   useEffect(() => {
@@ -40,6 +42,7 @@ function App() {
             username: null,
             email: null,
             photoUrl: null,
+            isVerified: false
           });
           console.log('response.data.message', response.data.message);
         })
@@ -65,20 +68,24 @@ function App() {
           <UserContext.Provider value={{ user, setUser }}>
 
             <Routes>
+
               <Route path="/" element={<LandingPage />} />
 
-              <Route path="register" element={user.id ? <LandingPage /> : <Register />} />
+              {/* If the user is not logged in, show the register page, otherwise show the landing page */}
+              <Route path="register" element={!user.id ? <Register /> : <LandingPage />} />
 
-              <Route path="login" element={user.id ? <LandingPage /> : <Login />} />
+              {/* If the user is not logged in, show the login page, otherwise show the landing page */}
+              <Route path="login" element={!user.id ? <Login /> : <LandingPage />} />
 
-              <Route path="upload" element={user.id ? <Upload /> : <Login />} />
+              {/* If the user is not logged in, show the login page.  If they are logged in, but not verified, show the verification page.  Otherwise, show the landing page. */}
+              <Route path="verify-email" element={!user.id ? <Login /> : (!user.isVerified ? <VerifyEmail /> : <LandingPage />)} />
 
-              <Route path="results" element={user.id ? <Results /> : <Login />} />
+              {/* If the user is verified,  in, show the login page, otherwise show the landing page */}
+              <Route path="upload" element={user.isVerified ? <Upload /> : <Login />} />
 
-              <Route path="profile" element={user.id ? <Profile /> : <Login />} />
+              <Route path="results" element={user.isVerified ? <Results /> : <Login />} />
 
-              <Route path="verify-email" element={user.id ? <VerifyEmail /> : <Register />} />
-
+              <Route path="profile" element={user.isVerified ? <Profile /> : <Login />} />
 
             </Routes>
           </UserContext.Provider>

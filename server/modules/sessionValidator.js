@@ -49,7 +49,7 @@ async function sessionValidator(req, res, next) {
 function validateUser(req, res, next) {
 
   if (req.user === undefined) {
-    res.status(403).json({message: 'You must be logged in to access this'});
+    res.status(401).json({ message: 'You must be logged in to access this' });
   } else {
     next();
   }
@@ -75,5 +75,14 @@ function clearSessions(userId) {
 
 }
 
-module.exports = { clearSessions: clearSessions, SESSIONS: SESSIONS, sessionValidator: sessionValidator, validateUser: validateUser};
+function clearCookieByName(res, name) {
+  res.clearCookie(name, {
+    httpOnly: true,
+    path: '/',
+    sameSite: 'strict',
+    secure: true
+  });
+}
+
+module.exports = { clearCookieByName: clearCookieByName, clearSessions: clearSessions, SESSIONS: SESSIONS, sessionValidator: sessionValidator, validateUser: validateUser};
 

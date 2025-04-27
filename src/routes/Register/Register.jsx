@@ -38,6 +38,7 @@ const Register = () => {
           username: response.data.username,
           email: response.data.email,
           photoUrl: response.data.photoUrl,
+          isVerified: false
         });
 
         setFirstName('');

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require("../modules/pool.js");
-const { clearSessions, SESSIONS, validateUser } = require('../modules/sessionValidator.js')
+const { clearCookieByName, clearSessions, SESSIONS, validateUser } = require('../modules/sessionValidator.js')
 const { scrypt, randomInt, randomBytes, timingSafeEqual } = require("node:crypto");
 
 // scrypt values per
@@ -30,13 +30,13 @@ router.post("/register", (req, res) => {
     }
 
     const query = `
-      INSERT INTO users
-        (first_name, last_name, username, email, hashed_salted_password, salt, verification_code)
-      VALUES
-        ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING
-        id, "first_name" as "firstName", "last_name" as "lastName", "username", email, photo_url as "photoUrl";
-    `;
+                    INSERT INTO users
+                      (first_name, last_name, username, email, hashed_salted_password, salt, verification_code)
+                    VALUES
+                      ($1, $2, $3, $4, $5, $6, $7)
+                    RETURNING
+                      id, "first_name" as "firstName", "last_name" as "lastName", "username", email, photo_url as "photoUrl";
+                  `;
 
     const queryValues = [
       firstName,
@@ -55,7 +55,7 @@ router.post("/register", (req, res) => {
         const sgMail = require('@sendgrid/mail')
         sgMail.setApiKey(process.env.SENDGRID_API_KEY)
         const msg = {
-          to: process.env.ENVIRONMENT = 'dev' ? 'evaluationforum@gmail.com' : email,
+          to: process.env.ENVIRONMENT = 'dev' ? process.env.SENDGRID_TEST_ADDRESS : email,
           from: 'donotreply@evaluation.forum',
           subject: 'Evaluation Forum registration verification code',
           text: `\n\nYour registration verification code is: '${verificationCode}'.\n\nPlease do not share this code with anyone.\nWe will never ask you for this code over the phone or text message.`,
@@ -91,7 +91,7 @@ router.post("/register", (req, res) => {
         // ToDo: could error if not enough entropy.
         const session_id = randomBytes(32).toString('hex');
         SESSIONS.set(session_id, dbRes.rows[0].id);
-        res.cookie('__Secure-id', session_id, { expires: 0, httpOnly: true, path: '/', sameSite: true, secure: true });
+        res.cookie('__Secure-id', session_id, { httpOnly: true, path: '/', sameSite: 'strict', secure: true });
         res.status(201).json(body);
       })
       .catch((dbErr) => {
@@ -117,29 +117,24 @@ router.post("/register/verify", validateUser, (req, res) => {
   const { attemptedCode } = req.body;
 
   const query = `
-    SELECT "verification_code" as "verificationCode", "last_name" as "lastName", "username", "email", "phone", "member_number" as "memberNumber", "photo_url" as "photoUrl", "bio" FROM
-        users
-    WHERE
-        id = $1;
-  `;
+                      UPDATE users
+                      SET "is_verified" = now()
+                      WHERE id = $1 and "verification_code" = $2;
+                     `;
 
-  const queryValues = [id];
+  const queryValues = [id, attemptedCode];
 
   pool
     .query(query, queryValues)
     .then((dbRes) => {
-      let userDetails = dbRes.rows[0];
-      userDetails.message = "Successfully fetched user data";
-      res.status(201).json(userDetails);
+      res.status(201).json({ message: "Successfully verified!" });
       return;
     })
     .catch((dbErr) => {
-      res.status(500).json({ message: 'Error fetching user information.' });
+      console.log('\n\nError verifying user:\n', dbErr);
+      res.status(500).json({ message: 'Verification attempt unsuccesful.' });
       return;
     });
-
-
-
 });
 
 router.post("/login", (req, res) => {
@@ -147,7 +142,7 @@ router.post("/login", (req, res) => {
   const { username, password } = req.body;
 
   const query = `
-        SELECT id, "first_name" as "firstName", "last_name" as "lastName", "username", photo_url as "photoUrl", salt, hashed_salted_password FROM
+        SELECT id, "first_name" as "firstName", "last_name" as "lastName", "username", email, (is_verified IS NOT NULL) as "isVerified", photo_url as "photoUrl", salt, hashed_salted_password FROM
             users
         WHERE
             username = $1;
@@ -182,7 +177,9 @@ router.post("/login", (req, res) => {
               firstName: user.firstName,
               lastName: user.lastName,
               username: user.username,
+              email: user.email,
               photoUrl: user.photoUrl,
+              isVerified: user.isVerified,
               message: "Login Successful!"
             };
 
@@ -190,7 +187,7 @@ router.post("/login", (req, res) => {
             const session_id = randomBytes(32).toString('hex');
             clearSessions(user.id);
             SESSIONS.set(session_id, dbRes.rows[0].id);
-            res.cookie('__Secure-id', session_id, { expires: 0, httpOnly: true, path: '/', sameSite: true, secure: true });
+            res.cookie('__Secure-id', session_id, { httpOnly: true, path: '/', sameSite: 'strict', secure: true });
 
             res.status(201).json(body);
             return;
@@ -201,7 +198,7 @@ router.post("/login", (req, res) => {
               message: "That combination of email and password does not exist",
             };
 
-            res.status(403).json(body);
+            res.status(401).json(body);
             return;
           }
         });
@@ -210,7 +207,7 @@ router.post("/login", (req, res) => {
           message: "That combination of email and password does not exist",
         };
 
-        res.status(403).json(body);
+        res.status(401).json(body);
         return;
       }
     })
@@ -224,10 +221,12 @@ router.post("/login", (req, res) => {
 
 router.post("/logout", validateUser, (req, res) => {
 
-  res.clearCookie('__Secure-id', { httpOnly: true, path: '/', sameSite: true, secure: true });
-  res.status(200).json({ message: 'Logout Successful' });
+  clearCookieByName(res, '__Secure-id');
 
   clearSessions(req.user.id);
+
+  res.status(200).json({ message: 'Logout Successful' });
+
   return;
 });
 
@@ -277,18 +276,18 @@ router.put("/password/:id", validateUser, (req, res) => {
               if (err) throw err;
 
               const query = `
-                UPDATE
-                  users
-                SET
-                  hashed_salted_password = $1,
-                  salt = $2
-                WHERE
-                  id = $3
-                AND
-                  username = $4
-                RETURNING
-                  id;
-              `;
+                              UPDATE
+                                users
+                              SET
+                                hashed_salted_password = $1,
+                                salt = $2
+                              WHERE
+                                id = $3
+                              AND
+                                username = $4
+                              RETURNING
+                                id;
+                            `;
 
               const queryValues = [
                 new_hashed_salted_password,
@@ -320,7 +319,7 @@ router.put("/password/:id", validateUser, (req, res) => {
             let body = {
               message: "That combination of username and password does not exist",
             };
-            res.status(403).json(body);
+            res.status(401).json(body);
             return;
           }
         });
@@ -328,7 +327,7 @@ router.put("/password/:id", validateUser, (req, res) => {
         let body = {
           message: "That combination of username and password does not exist",
         };
-        res.status(403).json(body);
+        res.status(401).json(body);
         return;
       }
     })
@@ -344,11 +343,10 @@ router.get("/", validateUser, (req, res) => {
   const id = req.user.id;
 
   const query = `
-    SELECT "first_name" as "firstName", "last_name" as "lastName", "username", "email", "phone", "member_number" as "memberNumber", "photo_url" as "photoUrl", "bio" FROM
-        users
-    WHERE
-        id = $1;
-  `;
+                  SELECT "first_name" as "firstName", "last_name" as "lastName", "username", "email", "phone", "member_number" as "memberNumber", "photo_url" as "photoUrl", "bio"
+                  FROM users
+                  WHERE id = $1;
+                `;
 
   const queryValues = [id];
 
@@ -366,9 +364,9 @@ router.get("/", validateUser, (req, res) => {
     });
 });
 
-router.delete("/:id", (req, res) => {
+router.delete("/:id", validateUser, (req, res) => {
 
-  const id = req.params.id;
+  const id = req.users.id;
   res.sendStatus(200);
   return;
 
