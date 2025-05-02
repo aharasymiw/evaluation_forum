@@ -1,8 +1,11 @@
 const express = require('express');
-const usersRouter = require('./routes/users.router.js');
+
+const { sessionValidator } = require('./modules/sessionValidator.js')
+
+const authRouter = require('./routes/auth.router.js');
 const evalsRouter = require('./routes/evals.router.js');
 const speechesRouter = require('./routes/speeches.router.js');
-const { sessionValidator } = require('./modules/sessionValidator.js')
+const usersRouter = require('./routes/users.router.js');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -13,9 +16,10 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(sessionValidator);
 
-app.use('/api/users', usersRouter);
+app.use('/api/auth', authRouter);
 app.use('/api/evals', evalsRouter);
 app.use('/api/speeches', speechesRouter);
+app.use('/api/users', usersRouter);
 
 // Listen Server & Port
 app.listen(PORT, () => {

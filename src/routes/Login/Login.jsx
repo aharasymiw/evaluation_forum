@@ -21,7 +21,7 @@ const Login = () => {
       password
     };
 
-    axios.post('/api/users/login', payload)
+    axios.post('/api/auth/login', payload)
       .then(response => {
         console.log('User login successful.', response.data);
 

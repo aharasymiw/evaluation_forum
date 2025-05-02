@@ -27,7 +27,7 @@ const Register = () => {
       password
     };
 
-    axios.post('/api/users/register', payload)
+    axios.post('/api/auth/register', payload)
       .then(response => {
         console.log('New user registration successful.', response.data);
 

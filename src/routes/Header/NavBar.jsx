@@ -17,7 +17,7 @@ const NavBar = () => {
   window.addEventListener('resize', () => { setMenuIsActive(false) })
 
   function logout() {
-    axios.post('/api/users/logout')
+    axios.post('/api/auth/logout')
       .then(response => {
 
         console.log('Logout response', response.data);
@@ -34,7 +34,7 @@ const NavBar = () => {
 
         console.log('Successfully logged out', response.data.message);
 
-        // navigate("/");
+        navigate("/");
       })
       .catch(error => {
         console.log('Error logging out', error);
@@ -67,6 +67,7 @@ const NavBar = () => {
       return (
         <ul>
           <CustomLink to="verify-email" onClick={() => setMenuIsActive(false)}>Verify Email</CustomLink>
+          <CustomLink to="login" onClick={() => { setMenuIsActive(false); logout(); }}>Logout</CustomLink>
         </ul>
       );
     }

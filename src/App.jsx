@@ -33,7 +33,7 @@ function App() {
 
   useEffect(() => {
     async function preventUnload(event) {
-      await axios.post('/api/users/logout')
+      await axios.post('/api/auth/logout')
         .then(response => {
           setUser({
             id: null,

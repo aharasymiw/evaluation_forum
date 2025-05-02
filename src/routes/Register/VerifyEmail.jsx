@@ -19,7 +19,7 @@ const VerifyEmail = () => {
       attemptedCode
     };
 
-    axios.post('/api/users/register/verify', payload)
+    axios.post('/api/auth/verify/email', payload)
       .then(response => {
         console.log('New user verification successful.', response.data);
 
