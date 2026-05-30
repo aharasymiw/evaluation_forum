@@ -44,3 +44,5 @@ Multi Club Support
   or just use JWTs as cookies, so it's all stored on the client.
 Darkmode
 Pepper
+
+Add voting for officers and toastmaster of the year.
